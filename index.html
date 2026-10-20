@@ -329,7 +329,7 @@ input[type="range"]{width:100%; accent-color:var(--brass)}
         <label for="seq">Notas a practicar, en orden</label>
         <textarea id="seq" data-key="seq" rows="4" spellcheck="false"></textarea>
         <p class="ferr" id="seq-err"></p>
-        <p class="hint">Separadas por espacios: A4 C5 E5 o La4 Do5 Mi5. Se ignoran comas, barras y guiones. Ejemplo cargado: Himno de la alegría (Beethoven).</p>
+        <p class="hint">Separadas por espacios: A4 C5 E5 o La4 Do5 Mi5. Se ignoran comas, barras y guiones.</p>
       </div>
       <label class="check"><input type="checkbox" id="seqLanes" data-key="seqLanes"> <span>Usar como carriles solo las notas de esta secuencia (menos carriles, más anchos)</span></label>
       <div class="btnrow">
@@ -486,15 +486,15 @@ const MP_VERSION = '0.10.14';
 const MP_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}/vision_bundle.mjs`;
 const WASM_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}/wasm`;
 const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
-const STORE_KEY = 'organo-gestual-v1';
+const STORE_KEY = 'organo-gestual-v2';
 const GRACE_MS = 220;
 
 const DEFAULTS = {
-  preset:'catedral', reverb:0.45, volMel:0.85, volCh:0.55, master:0.8,
+  preset:'catedral', reverb:0.75, volMel:0.85, volCh:0.55, master:0.8,
   root:9, scale:'minor', lowOct:3, span:19, latin:'en',
-  chords:'', chordsAuto:true, latch:true, pedal:true,
-  trigger:'pinch', oneHand:false, swap:false, pinchSens:1, smooth:0.5, hyst:0.3, zone:0.1, showVideo:true,
-  seq:'E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 E4 D4 D4', seqLanes:false,
+  chords:'F G Am G', chordsAuto:false, latch:true, pedal:true,
+  trigger:'pinch', oneHand:false, swap:false, pinchSens:1, smooth:0.5, hyst:0.15, zone:0.1, showVideo:true,
+  seq:'A4 E5 A4 E5  B4 E5 B4 E5  C5 E5 C5 E5  D5 E5 D5 E5  B4 A4', seqLanes:true,
 };
 let settings = {...DEFAULTS};
 try { const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); if (saved && typeof saved === 'object') settings = {...DEFAULTS, ...saved}; } catch (e) {}
