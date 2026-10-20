@@ -1,0 +1,1119 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Órgano Gestual</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: escenario de cámara (el instrumento) a la izquierda, consola de registros a la derecha; en pantallas angostas se apilan. */
+:root{
+  color-scheme: dark;
+  --void:#070a12; --stage:#04060b; --panel:#0c1220; --raise:#141c2e; --line:#202a40; --line-strong:#2f3b58;
+  --ink:#ece6d7; --muted:#8c94a9; --faint:#5b647c;
+  --brass:#e2aa50; --brass-ink:#1b1306; --ice:#8ab6dc; --alert:#e8735e; --ok:#7cc79c;
+  --f-display:"Big Shoulders Display", "Arial Narrow", Impact, sans-serif;
+  --f-body:"Instrument Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{background:var(--void)}
+body{
+  margin:0; min-height:100vh; background:var(--void); color:var(--ink);
+  font:14px/1.5 var(--f-body);
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+  padding-block:14px 32px;
+}
+button, select, textarea, input{font:inherit; color:inherit}
+:focus-visible{outline:2px solid var(--brass); outline-offset:2px}
+
+.top{max-width:1480px; margin:0 auto 14px; display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center; justify-content:space-between}
+.brand{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap}
+.brand h1{margin:0; font:800 30px/1 var(--f-display); letter-spacing:.04em; text-transform:uppercase}
+.brand p{margin:0; color:var(--muted); font-size:13px}
+.top-right{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+.pill{font:12px/1 var(--f-mono); padding:6px 10px; border:1px solid var(--line); border-radius:999px; color:var(--muted); white-space:nowrap}
+.pill b{font-weight:600; color:var(--ink)}
+.pill[data-state="ok"] b{color:var(--ok)}
+.pill[data-state="wait"] b{color:var(--brass)}
+.pill[data-state="bad"] b{color:var(--alert)}
+
+.btn{font-weight:600; font-size:14px; padding:9px 15px; border-radius:8px; border:1px solid var(--line-strong); background:var(--raise); color:var(--ink); cursor:pointer}
+.btn:hover{border-color:var(--muted)}
+.btn:disabled{opacity:.5; cursor:default}
+.btn-primary{background:var(--brass); color:var(--brass-ink); border-color:var(--brass)}
+.btn-primary:hover{filter:brightness(1.08); border-color:var(--brass)}
+.btn-small{font-size:12px; padding:6px 10px}
+
+.layout{max-width:1480px; margin:0 auto; display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:18px; align-items:start}
+@media (max-width: 1000px){ .layout{grid-template-columns:minmax(0,1fr)} }
+.play{min-width:0}
+
+.readout{display:grid; grid-template-columns:1fr auto 1fr; gap:12px; align-items:end; margin-bottom:10px}
+.ro-label{font:600 11px/1 var(--f-mono); letter-spacing:.14em; text-transform:uppercase; color:var(--muted)}
+.ro-value{font:800 clamp(40px, 7vw, 86px)/.92 var(--f-display); letter-spacing:.01em; font-variant-numeric:tabular-nums; margin-top:6px}
+.ro-sub{font:12px/1.4 var(--f-mono); color:var(--muted); min-height:1.4em}
+.ro-chord .ro-value{color:var(--ice)}
+.ro-mel{text-align:right}
+.ro-mel .ro-value{color:var(--brass)}
+.ro-mid{text-align:center; padding-bottom:6px}
+.ro-mid .ro-sub{max-width:22ch}
+
+.stage-wrap{width:100%}
+.stage{position:relative; margin:0 auto; background:var(--stage); border:1px solid var(--line); border-radius:10px; overflow:hidden; max-width:100%}
+#video{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transform:scaleX(-1); opacity:.4}
+#video.off{opacity:0}
+#overlay{position:absolute; inset:0; width:100%; height:100%; display:block}
+.start{position:absolute; inset:0; display:flex; background:rgba(4,6,11,.86); padding:16px; overflow:auto}
+.start-card{max-width:460px; display:grid; gap:12px; margin:auto}
+@media (max-width: 560px){ .start-card h2{font-size:26px} .start-card p{font-size:13px} }
+.start-card h2{margin:0; font:800 34px/1 var(--f-display); text-transform:uppercase; letter-spacing:.03em}
+.start-card p{margin:0; color:var(--muted)}
+.start-actions{display:flex; gap:10px; flex-wrap:wrap}
+.error{color:var(--alert); font-size:13px; margin:0}
+
+.notice{margin-top:10px; font-size:13px; color:var(--muted); min-height:1.5em}
+.notice.bad{color:var(--alert)}
+
+.practice{margin-top:12px; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 12px; display:grid; gap:8px}
+.practice-head{display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap}
+.practice-head .ro-label{font-size:10px}
+.prog{font:12px var(--f-mono); color:var(--muted); font-variant-numeric:tabular-nums}
+.tokens{display:flex; gap:6px; flex-wrap:wrap; min-height:30px; align-items:center}
+.tok{font:13px/1 var(--f-mono); padding:7px 9px; border-radius:6px; background:var(--raise); color:var(--muted); border:1px solid transparent}
+.tok.done{opacity:.35}
+.tok.now{background:var(--brass); color:var(--brass-ink); font-weight:600}
+.tok.miss{border-color:var(--alert)}
+.tok.out{text-decoration:line-through; color:var(--alert)}
+.empty{color:var(--faint); font-size:13px}
+
+.howto{margin-top:12px; display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px}
+.how{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px 14px; min-width:0}
+.how h3{margin:0 0 6px; font:600 11px/1 var(--f-mono); letter-spacing:.14em; text-transform:uppercase}
+.how.mel h3{color:var(--brass)}
+.how.ch h3{color:var(--ice)}
+.how.kb h3{color:var(--muted)}
+.how p{margin:0; color:var(--muted); font-size:13px}
+.how kbd{font:12px var(--f-mono); padding:1px 5px; border:1px solid var(--line-strong); border-radius:4px; color:var(--ink)}
+
+.panel{display:grid; gap:12px; align-content:start; min-width:0}
+.group{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; min-width:0}
+.group h2{margin:0 0 12px; font:600 11px/1 var(--f-mono); letter-spacing:.14em; text-transform:uppercase; color:var(--muted)}
+.field{display:grid; gap:5px; margin-bottom:12px}
+.field:last-child{margin-bottom:0}
+.field > span, .field > label{font-size:13px; color:var(--ink)}
+.row2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.hint{font-size:12px; color:var(--faint); margin:0}
+.ferr{font-size:12px; color:var(--alert); margin:0; min-height:0}
+select, textarea{width:100%; background:var(--raise); border:1px solid var(--line-strong); border-radius:7px; padding:7px 9px}
+textarea{font:13px/1.5 var(--f-mono); resize:vertical; min-height:64px}
+input[type="range"]{width:100%; accent-color:var(--brass)}
+.check{display:flex; gap:9px; align-items:flex-start; font-size:13px; margin-bottom:10px; cursor:pointer}
+.check input{margin-top:3px; accent-color:var(--brass)}
+.check:last-child{margin-bottom:0}
+.rangehead{display:flex; justify-content:space-between; gap:8px}
+.rangehead output{font:12px var(--f-mono); color:var(--muted); font-variant-numeric:tabular-nums}
+.btnrow{display:flex; gap:8px; flex-wrap:wrap}
+
+@media (max-width: 560px){
+  .readout{grid-template-columns:1fr 1fr}
+  .ro-mid{display:none}
+}
+@media (prefers-reduced-motion: reduce){ *{transition:none!important; animation:none!important} }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <h1>Órgano Gestual</h1>
+    <p>Tocá con las manos frente a la cámara</p>
+  </div>
+  <div class="top-right">
+    <span class="pill" id="pill-cam" data-state="">Cámara <b>apagada</b></span>
+    <span class="pill" id="pill-model" data-state="">Modelo <b>—</b></span>
+    <span class="pill" id="pill-hands" data-state="">Manos <b>0</b></span>
+    <span class="pill" id="pill-fps" data-state="">Tracking <b>— fps</b></span>
+    <button class="btn btn-small" id="panic" type="button" title="Tecla Esc">Silenciar todo</button>
+  </div>
+</header>
+
+<main class="layout">
+  <section class="play">
+    <div class="readout">
+      <div class="ro-chord">
+        <div class="ro-label">Acorde</div>
+        <div class="ro-value" id="ro-chord">—</div>
+        <div class="ro-sub" id="ro-chord-sub">mano izquierda</div>
+      </div>
+      <div class="ro-mid">
+        <div class="ro-sub" id="ro-key">La menor natural</div>
+      </div>
+      <div class="ro-mel">
+        <div class="ro-label">Nota</div>
+        <div class="ro-value" id="ro-note">—</div>
+        <div class="ro-sub" id="ro-note-sub">mano derecha</div>
+      </div>
+    </div>
+
+    <div class="stage-wrap" id="stage-wrap">
+      <div class="stage" id="stage">
+        <video id="video" playsinline muted></video>
+        <canvas id="overlay"></canvas>
+        <div class="start" id="start">
+          <div class="start-card">
+            <h2>Listo para tocar</h2>
+            <p>La cámara se procesa solo en esta computadora; no se envía ninguna imagen. Usá buena luz de frente y dejá ver las dos manos completas.</p>
+            <div class="start-actions">
+              <button class="btn btn-primary" id="btn-cam" type="button">Activar cámara y sonido</button>
+              <button class="btn" id="btn-kb" type="button">Solo teclado</button>
+            </div>
+            <p class="error" id="start-error" hidden></p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="notice" id="notice"></div>
+
+    <div class="practice">
+      <div class="practice-head">
+        <span class="ro-label">Práctica</span>
+        <span class="prog" id="prog">—</span>
+      </div>
+      <div class="tokens" id="tokens"></div>
+    </div>
+
+    <div class="howto">
+      <div class="how mel">
+        <h3>Mano derecha · melodía</h3>
+        <p>La altura de la mano elige la nota. Juntá pulgar e índice (pinza) para que suene; separalos para cortar. Para repetir la misma nota, abrí y volvé a cerrar la pinza.</p>
+      </div>
+      <div class="how ch">
+        <h3>Mano izquierda · acordes</h3>
+        <p>La altura elige el acorde y la pinza lo activa. Con “Sostener acordes”, el acorde sigue sonando al soltar; una pinza sobre el mismo acorde lo apaga.</p>
+      </div>
+      <div class="how kb">
+        <h3>Teclado</h3>
+        <p>Notas: <kbd>A</kbd> a <kbd>Ñ</kbd> (graves) y <kbd>Q</kbd> a <kbd>P</kbd> (agudas). Acordes: <kbd>1</kbd> a <kbd>9</kbd>. <kbd>Esc</kbd> silencia todo.</p>
+      </div>
+    </div>
+  </section>
+
+  <aside class="panel">
+    <div class="group">
+      <h2>Sonido</h2>
+      <div class="field">
+        <label for="preset">Registro</label>
+        <select id="preset" data-key="preset">
+          <option value="catedral">Órgano de catedral</option>
+          <option value="flautado">Órgano flautado (suave)</option>
+          <option value="pad">Pad cálido</option>
+          <option value="synth">Sintetizador</option>
+        </select>
+      </div>
+      <div class="field">
+        <div class="rangehead"><label for="reverb">Reverberación</label><output id="reverb-out"></output></div>
+        <input type="range" id="reverb" data-key="reverb" min="0" max="1" step="0.01">
+      </div>
+      <div class="row2">
+        <div class="field">
+          <div class="rangehead"><label for="volMel">Melodía</label><output id="volMel-out"></output></div>
+          <input type="range" id="volMel" data-key="volMel" min="0" max="1" step="0.01">
+        </div>
+        <div class="field">
+          <div class="rangehead"><label for="volCh">Acordes</label><output id="volCh-out"></output></div>
+          <input type="range" id="volCh" data-key="volCh" min="0" max="1" step="0.01">
+        </div>
+      </div>
+      <div class="field">
+        <div class="rangehead"><label for="master">Volumen general</label><output id="master-out"></output></div>
+        <input type="range" id="master" data-key="master" min="0" max="1" step="0.01">
+      </div>
+    </div>
+
+    <div class="group">
+      <h2>Tonalidad</h2>
+      <div class="row2">
+        <div class="field">
+          <label for="root">Tónica</label>
+          <select id="root" data-key="root" data-num></select>
+        </div>
+        <div class="field">
+          <label for="scale">Escala</label>
+          <select id="scale" data-key="scale"></select>
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label for="lowOct">Octava inicial</label>
+          <select id="lowOct" data-key="lowOct" data-num>
+            <option value="2">2 (grave)</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5 (aguda)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="span">Extensión</label>
+          <select id="span" data-key="span" data-num>
+            <option value="12">1 octava</option>
+            <option value="19">1 octava + 5ª</option>
+            <option value="24">2 octavas</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="latin">Nombres de notas</label>
+        <select id="latin" data-key="latin">
+          <option value="en">Americano (C D E…)</option>
+          <option value="lat">Latino (Do Re Mi…)</option>
+        </select>
+      </div>
+      <p class="hint" id="lane-count"></p>
+    </div>
+
+    <div class="group">
+      <h2>Acordes (mano izquierda)</h2>
+      <div class="field">
+        <label for="chords">Lista de acordes, de arriba hacia abajo</label>
+        <textarea id="chords" data-key="chords" rows="2" spellcheck="false"></textarea>
+        <p class="ferr" id="chords-err"></p>
+        <p class="hint">Acepta Am, F, C/E, Dm7, Gsus4, Fmaj7, Lam, Sol7… Máximo 9.</p>
+      </div>
+      <div class="btnrow" style="margin-bottom:12px">
+        <button class="btn btn-small" id="btn-diatonic" type="button">Usar acordes de la escala</button>
+      </div>
+      <label class="check"><input type="checkbox" id="latch" data-key="latch"> <span>Sostener acordes al soltar la pinza</span></label>
+      <label class="check"><input type="checkbox" id="pedal" data-key="pedal"> <span>Agregar bajo de pedal (una octava abajo)</span></label>
+    </div>
+
+    <div class="group">
+      <h2>Gestos</h2>
+      <div class="field">
+        <label for="trigger">Cómo suena una nota</label>
+        <select id="trigger" data-key="trigger">
+          <option value="pinch">Con pinza (pulgar + índice)</option>
+          <option value="hand">Mientras la mano esté visible (puño = silencio)</option>
+        </select>
+      </div>
+      <label class="check"><input type="checkbox" id="oneHand" data-key="oneHand"> <span>Una sola mano (solo melodía, carriles en todo el ancho)</span></label>
+      <label class="check"><input type="checkbox" id="swap" data-key="swap"> <span>Invertir manos (melodía con la izquierda)</span></label>
+      <div class="field">
+        <div class="rangehead"><label for="pinchSens">Sensibilidad de la pinza</label><output id="pinchSens-out"></output></div>
+        <input type="range" id="pinchSens" data-key="pinchSens" min="0.6" max="1.6" step="0.05">
+        <p class="hint">Subila si la pinza no responde; bajala si suena sin querer.</p>
+      </div>
+      <div class="field">
+        <div class="rangehead"><label for="smooth">Suavizado del movimiento</label><output id="smooth-out"></output></div>
+        <input type="range" id="smooth" data-key="smooth" min="0" max="1" step="0.05">
+      </div>
+      <div class="field">
+        <div class="rangehead"><label for="hyst">Estabilidad entre notas</label><output id="hyst-out"></output></div>
+        <input type="range" id="hyst" data-key="hyst" min="0" max="0.5" step="0.05">
+        <p class="hint">Más estabilidad evita saltos cerca del borde entre dos notas, a costa de cambios menos inmediatos.</p>
+      </div>
+      <div class="field">
+        <div class="rangehead"><label for="zone">Margen arriba y abajo</label><output id="zone-out"></output></div>
+        <input type="range" id="zone" data-key="zone" min="0.02" max="0.25" step="0.01">
+      </div>
+      <label class="check"><input type="checkbox" id="showVideo" data-key="showVideo"> <span>Mostrar imagen de la cámara</span></label>
+    </div>
+
+    <div class="group">
+      <h2>Práctica</h2>
+      <div class="field">
+        <label for="seq">Notas a practicar, en orden</label>
+        <textarea id="seq" data-key="seq" rows="4" spellcheck="false"></textarea>
+        <p class="ferr" id="seq-err"></p>
+        <p class="hint">Separadas por espacios: A4 C5 E5 o La4 Do5 Mi5. Se ignoran comas, barras y guiones. Ejemplo cargado: Himno de la alegría (Beethoven).</p>
+      </div>
+      <label class="check"><input type="checkbox" id="seqLanes" data-key="seqLanes"> <span>Usar como carriles solo las notas de esta secuencia (menos carriles, más anchos)</span></label>
+      <div class="btnrow">
+        <button class="btn btn-small" id="btn-reset" type="button">Reiniciar práctica</button>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<script type="module">
+// ==PURE-START==
+const PC_EN = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const PC_LAT = ['Do','Do#','Re','Re#','Mi','Fa','Fa#','Sol','Sol#','La','La#','Si'];
+const LETTER_PC = {c:0,d:2,e:4,f:5,g:7,a:9,b:11,do:0,re:2,mi:4,fa:5,sol:7,la:9,si:11};
+const SCALES = {
+  minor:     {name:'menor natural', steps:[0,2,3,5,7,8,10]},
+  major:     {name:'mayor', steps:[0,2,4,5,7,9,11]},
+  harmonic:  {name:'menor armónica', steps:[0,2,3,5,7,8,11]},
+  dorian:    {name:'dórica', steps:[0,2,3,5,7,9,10]},
+  pentMinor: {name:'pentatónica menor', steps:[0,3,5,7,10], parent:'minor'},
+  pentMajor: {name:'pentatónica mayor', steps:[0,2,4,7,9], parent:'major'},
+  chromatic: {name:'cromática', steps:[0,1,2,3,4,5,6,7,8,9,10,11], parent:'minor'},
+};
+const CHORD_Q = {
+  '':[0,4,7], 'M':[0,4,7], 'maj':[0,4,7], 'm':[0,3,7], 'min':[0,3,7], '-':[0,3,7],
+  '7':[0,4,7,10], 'm7':[0,3,7,10], 'min7':[0,3,7,10], '-7':[0,3,7,10],
+  'maj7':[0,4,7,11], 'M7':[0,4,7,11], '6':[0,4,7,9], 'm6':[0,3,7,9],
+  'dim':[0,3,6], '°':[0,3,6], 'dim7':[0,3,6,9], 'm7b5':[0,3,6,10],
+  'aug':[0,4,8], '+':[0,4,8], 'sus2':[0,2,7], 'sus4':[0,5,7], 'sus':[0,5,7],
+  'add9':[0,4,7,14], 'madd9':[0,3,7,14], '9':[0,4,7,10,14], 'm9':[0,3,7,10,14], '5':[0,7],
+};
+
+function mod12(n){ return ((n % 12) + 12) % 12; }
+function pcName(pc, latin){ return (latin ? PC_LAT : PC_EN)[mod12(pc)]; }
+function noteName(midi, latin){ return pcName(midi, latin) + (Math.floor(midi / 12) - 1); }
+function midiToFreq(m){ return 440 * Math.pow(2, (m - 69) / 12); }
+
+const NOTE_RE = /^(do|re|mi|fa|sol|la|si|[a-g])([#b♯♭]?)(-?\d)$/i;
+function parseNoteToken(tok){
+  const m = NOTE_RE.exec(String(tok).trim());
+  if (!m) return null;
+  let pc = LETTER_PC[m[1].toLowerCase()];
+  const acc = m[2];
+  if (acc === '#' || acc === '♯') pc += 1;
+  else if (acc === 'b' || acc === 'B' || acc === '♭') pc -= 1;
+  return 12 * (parseInt(m[3], 10) + 1) + pc;
+}
+function parseSequence(text){
+  const notes = [], bad = [];
+  for (const tok of String(text).split(/[\s,;|]+/)) {
+    if (!tok || /^[-_.]+$/.test(tok)) continue;
+    const m = parseNoteToken(tok);
+    if (m == null || m < 12 || m > 120) bad.push(tok); else notes.push(m);
+  }
+  return {notes, bad};
+}
+
+function lookupQuality(q){
+  if (Object.prototype.hasOwnProperty.call(CHORD_Q, q)) return CHORD_Q[q];
+  const l = q.toLowerCase();
+  if (Object.prototype.hasOwnProperty.call(CHORD_Q, l)) return CHORD_Q[l];
+  return null;
+}
+function rootPc(letter, acc){
+  let pc = LETTER_PC[letter.toLowerCase()];
+  if (acc === '#') pc += 1; else if (acc && acc.toLowerCase() === 'b') pc -= 1;
+  return mod12(pc);
+}
+function parseChord(sym){
+  const s = String(sym).trim();
+  if (!s) return null;
+  const parts = s.split('/');
+  if (parts.length > 2) return null;
+  let bassPc = null;
+  if (parts.length === 2) {
+    const b = /^(do|re|mi|fa|sol|la|si|[a-g])([#b]?)$/i.exec(parts[1]);
+    if (!b) return null;
+    bassPc = rootPc(b[1], b[2]);
+  }
+  const cands = [/^(do|re|mi|fa|sol|la|si)([#b]?)(.*)$/i, /^([a-g])([#b]?)(.*)$/i];
+  for (const re of cands) {
+    const m = re.exec(parts[0]);
+    if (!m) continue;
+    const ints = lookupQuality(m[3]);
+    if (!ints) continue;
+    return {name: s, pc: rootPc(m[1], m[2]), ints, bassPc};
+  }
+  return null;
+}
+function parseChordList(text){
+  const chords = [], bad = [];
+  for (const tok of String(text).split(/[\s,;|]+/)) {
+    if (!tok) continue;
+    const c = parseChord(tok);
+    if (c) chords.push(c); else bad.push(tok);
+  }
+  return {chords: chords.slice(0, 9), bad, over: chords.length > 9};
+}
+function chordMidis(ch, pedal){
+  const root = 52 + mod12(ch.pc - 4);              // raíz entre Mi3 y Re#4
+  const notes = ch.ints.map(i => root + i);
+  if (pedal) notes.push(40 + mod12((ch.bassPc ?? ch.pc) - 4)); // bajo entre Mi2 y Re#3
+  else if (ch.bassPc != null) notes.push(root - 12 + mod12(ch.bassPc - ch.pc));
+  return notes;
+}
+function diatonicChords(root, scaleKey, latin){
+  let sc = SCALES[scaleKey] || SCALES.minor;
+  if (sc.steps.length !== 7) sc = SCALES[sc.parent || 'minor'];
+  const st = sc.steps, out = [];
+  for (let i = 0; i < 7; i++) {
+    const a = st[i];
+    const b = st[(i + 2) % 7] + (i + 2 >= 7 ? 12 : 0);
+    const c = st[(i + 4) % 7] + (i + 4 >= 7 ? 12 : 0);
+    const t1 = b - a, t2 = c - a;
+    const q = (t1 === 3 && t2 === 7) ? 'm' : (t1 === 3 && t2 === 6) ? 'dim' : (t1 === 4 && t2 === 8) ? 'aug' : '';
+    out.push(pcName(root + a, latin) + q);
+  }
+  return out;
+}
+function scaleLanes(root, scaleKey, lowOct, span){
+  const st = (SCALES[scaleKey] || SCALES.minor).steps;
+  const low = 12 * (lowOct + 1) + mod12(root);
+  const out = [];
+  for (let m = low; m <= low + span; m++) if (st.includes(mod12(m - low))) out.push(m);
+  return out;
+}
+function laneWithHysteresis(c, current, n, margin){
+  if (n <= 0) return -1;
+  if (current >= 0 && current < n && c >= current - margin && c < current + 1 + margin) return current;
+  return Math.max(0, Math.min(n - 1, Math.floor(c)));
+}
+function updatePinch(prev, ratio, onT, offT){ return prev ? ratio < offT : ratio < onT; }
+
+class OneEuro {
+  constructor(minCutoff = 1.5, beta = 6, dCutoff = 1){ this.minCutoff = minCutoff; this.beta = beta; this.dCutoff = dCutoff; this.reset(); }
+  reset(){ this.x = null; this.dx = 0; this.t = null; }
+  static alpha(cutoff, dt){ const tau = 1 / (2 * Math.PI * cutoff); return 1 / (1 + tau / dt); }
+  filter(x, tMs){
+    if (this.t == null) { this.x = x; this.t = tMs; this.dx = 0; return x; }
+    const dt = (tMs - this.t) / 1000;
+    if (dt <= 0) return this.x;
+    const rawDx = (x - this.x) / dt;
+    this.dx += OneEuro.alpha(this.dCutoff, dt) * (rawDx - this.dx);
+    const cutoff = this.minCutoff + this.beta * Math.abs(this.dx);
+    this.x += OneEuro.alpha(cutoff, dt) * (x - this.x);
+    this.t = tMs;
+    return this.x;
+  }
+}
+// ==PURE-END==
+
+/* ---------- Configuración ---------- */
+const MP_VERSION = '0.10.14';
+const MP_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}/vision_bundle.mjs`;
+const WASM_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}/wasm`;
+const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
+const STORE_KEY = 'organo-gestual-v1';
+const GRACE_MS = 220;
+
+const DEFAULTS = {
+  preset:'catedral', reverb:0.45, volMel:0.85, volCh:0.55, master:0.8,
+  root:9, scale:'minor', lowOct:3, span:19, latin:'en',
+  chords:'', chordsAuto:true, latch:true, pedal:true,
+  trigger:'pinch', oneHand:false, swap:false, pinchSens:1, smooth:0.5, hyst:0.3, zone:0.1, showVideo:true,
+  seq:'E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 E4 D4 D4', seqLanes:false,
+};
+let settings = {...DEFAULTS};
+try { const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); if (saved && typeof saved === 'object') settings = {...DEFAULTS, ...saved}; } catch (e) {}
+function save(){ try { localStorage.setItem(STORE_KEY, JSON.stringify(settings)); } catch (e) {} }
+const isLatin = () => settings.latin === 'lat';
+
+/* ---------- Motor de sonido ---------- */
+const PRESETS = {
+  catedral: {kind:'organ', bars:{1:0.55, 2:1, 4:0.7, 6:0.26, 8:0.42, 16:0.16}, detune:4, attack:0.05, release:0.5, cutoff:6500, room:4.8},
+  flautado: {kind:'organ', bars:{2:1, 4:0.32, 6:0.07, 8:0.05}, detune:3, attack:0.07, release:0.38, cutoff:3600, room:3.4},
+  pad:      {kind:'pad', detune:9, attack:0.35, release:1.4, cutoff:1900, room:4.2},
+  synth:    {kind:'lead', detune:6, attack:0.01, release:0.2, cutoff:4200, room:2.2},
+};
+
+class Engine {
+  constructor(){ this.ctx = null; this.presetKey = null; }
+  init(){
+    if (this.ctx) { if (this.ctx.state !== 'running') this.ctx.resume(); return; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const ctx = this.ctx = new AC({latencyHint:'interactive'});
+    this.master = ctx.createGain();
+    this.comp = ctx.createDynamicsCompressor();
+    this.comp.threshold.value = -12; this.comp.ratio.value = 4; this.comp.attack.value = 0.004; this.comp.release.value = 0.25;
+    this.bus = ctx.createGain();
+    this.dry = ctx.createGain();
+    this.wet = ctx.createGain();
+    this.conv = ctx.createConvolver();
+    this.melodyBus = ctx.createGain();
+    this.chordBus = ctx.createGain();
+    this.melodyBus.connect(this.bus); this.chordBus.connect(this.bus);
+    this.bus.connect(this.dry); this.dry.connect(this.master);
+    this.bus.connect(this.conv); this.conv.connect(this.wet); this.wet.connect(this.master);
+    this.master.connect(this.comp); this.comp.connect(ctx.destination);
+    this.applyMix();
+    this.setPreset(settings.preset);
+  }
+  applyMix(){
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.master.gain.setTargetAtTime(settings.master, t, 0.03);
+    this.melodyBus.gain.setTargetAtTime(settings.volMel, t, 0.03);
+    this.chordBus.gain.setTargetAtTime(settings.volCh * 0.6, t, 0.03);
+    this.wet.gain.setTargetAtTime(settings.reverb * 1.1, t, 0.03);
+    this.dry.gain.setTargetAtTime(1 - settings.reverb * 0.45, t, 0.03);
+  }
+  setPreset(key){
+    if (!this.ctx) return;
+    const p = PRESETS[key] || PRESETS.catedral;
+    if (this.presetKey === key) return;
+    this.presetKey = key; this.preset = p;
+    if (p.kind === 'organ') {
+      const N = 17, real = new Float32Array(N), imag = new Float32Array(N);
+      for (const [h, a] of Object.entries(p.bars)) imag[+h] = a;
+      this.wave = this.ctx.createPeriodicWave(real, imag);
+    }
+    this.conv.buffer = this.makeImpulse(p.room);
+  }
+  makeImpulse(seconds){
+    const rate = this.ctx.sampleRate, len = Math.floor(rate * seconds), pre = Math.floor(rate * 0.02);
+    const buf = this.ctx.createBuffer(2, len, rate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = buf.getChannelData(ch);
+      for (let i = pre; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.8) * 0.5;
+    }
+    return buf;
+  }
+  noteOn(midi, bus, vel = 1){
+    if (!this.ctx) return null;
+    const ctx = this.ctx, p = this.preset, t = ctx.currentTime, f = midiToFreq(midi);
+    const g = ctx.createGain(); g.gain.value = 0;
+    const filt = ctx.createBiquadFilter(); filt.type = 'lowpass'; filt.frequency.value = p.cutoff; filt.Q.value = 0.4;
+    filt.connect(g); g.connect(bus);
+    const oscs = [];
+    const mk = (type, freq, det, gain) => {
+      const o = ctx.createOscillator();
+      if (type === 'wave') o.setPeriodicWave(this.wave); else o.type = type;
+      o.frequency.value = freq; o.detune.value = det;
+      const og = ctx.createGain(); og.gain.value = gain;
+      o.connect(og); og.connect(filt); o.start(t); oscs.push(o);
+    };
+    if (p.kind === 'organ') { mk('wave', f / 2, -p.detune, 0.5); mk('wave', f / 2, p.detune, 0.5); }
+    else if (p.kind === 'pad') { mk('sawtooth', f, -p.detune, 0.32); mk('sawtooth', f, p.detune, 0.32); mk('triangle', f / 2, 0, 0.35); }
+    else { mk('sawtooth', f, -p.detune, 0.3); mk('square', f, p.detune, 0.18); }
+    const peak = 0.24 * vel;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(peak, t + p.attack);
+    oscs[0].onended = () => { try { g.disconnect(); } catch (e) {} };
+    return {g, oscs, release:p.release, midi};
+  }
+  noteOff(v){
+    if (!v || !this.ctx) return;
+    const t = this.ctx.currentTime;
+    const gp = v.g.gain;
+    gp.cancelScheduledValues(t);
+    gp.setValueAtTime(gp.value, t);
+    gp.setTargetAtTime(0, t, v.release / 4);
+    for (const o of v.oscs) { try { o.stop(t + v.release * 1.8 + 0.05); } catch (e) {} }
+  }
+}
+const engine = new Engine();
+
+/* ---------- Estado musical ---------- */
+let melodyLanes = [];
+let chordList = [];
+const melody = {voice:null, midi:null};
+const chord = {voices:[], index:-1};
+const practice = {seq:[], idx:0, missAt:0, doneAt:0};
+const flash = {lane:-1, at:0};
+
+function melodyPlay(midi){
+  if (!engine.ctx) return;
+  if (melody.voice && melody.midi === midi) return;
+  const old = melody.voice;
+  melody.voice = engine.noteOn(midi, engine.melodyBus, 1);
+  engine.noteOff(old);
+  melody.midi = midi;
+  onMelodyNoteOn(midi);
+  renderReadout();
+}
+function melodyStop(){
+  engine.noteOff(melody.voice);
+  melody.voice = null; melody.midi = null;
+  renderReadout();
+}
+function chordPlay(i){
+  const ch = chordList[i];
+  if (!ch || !engine.ctx) return;
+  const old = chord.voices;
+  const notes = chordMidis(ch, settings.pedal);
+  chord.voices = notes.map((m, k) => engine.noteOn(m, engine.chordBus, k >= ch.ints.length ? 0.85 : 0.7));
+  for (const v of old) engine.noteOff(v);
+  chord.index = i;
+  renderReadout();
+}
+function chordStop(){
+  for (const v of chord.voices) engine.noteOff(v);
+  chord.voices = []; chord.index = -1;
+  renderReadout();
+}
+function panic(){
+  melodyStop(); chordStop();
+  for (const r of Object.values(roles)) { r.sounding = false; r.prevActive = true; }
+  kb.mel.length = 0; kb.ch.length = 0;
+}
+
+/* ---------- Práctica ---------- */
+function onMelodyNoteOn(midi){
+  flash.lane = melodyLanes.indexOf(midi); flash.at = performance.now();
+  if (!practice.seq.length) return;
+  if (practice.idx >= practice.seq.length) return;
+  if (midi === practice.seq[practice.idx]) {
+    practice.idx++;
+    if (practice.idx >= practice.seq.length) {
+      practice.doneAt = performance.now();
+      setTimeout(() => { if (practice.idx >= practice.seq.length) { practice.idx = 0; renderPractice(); } }, 1800);
+    }
+  } else {
+    practice.missAt = performance.now();
+  }
+  renderPractice();
+}
+function targetLane(){
+  if (!practice.seq.length || practice.idx >= practice.seq.length) return -1;
+  return melodyLanes.indexOf(practice.seq[practice.idx]);
+}
+
+/* ---------- Manos ---------- */
+function makeRole(){
+  return {present:false, lastSeen:0, x:0.5, y:0.5, fx:new OneEuro(), fy:new OneEuro(), pinch:false, ratio:1, fist:false, lane:-1, sounding:false, prevActive:false, lm:null};
+}
+const roles = {melody:makeRole(), chords:makeRole()};
+let handsCount = 0;
+
+function applyFilterParams(){
+  const s = settings.smooth;
+  const minCutoff = 3.2 * (1 - s) + 0.35 * s;
+  for (const r of Object.values(roles)) for (const f of [r.fx, r.fy]) { f.minCutoff = minCutoff; f.beta = 6; }
+}
+
+function assignHands(hands){
+  const out = {melody:null, chords:null};
+  if (!hands.length) return out;
+  if (settings.oneHand) {
+    const ref = roles.melody.present ? roles.melody.x : 0.5;
+    out.melody = hands.reduce((a, b) => Math.abs(a.cx - ref) <= Math.abs(b.cx - ref) ? a : b);
+    return out;
+  }
+  const leftRole = settings.swap ? 'melody' : 'chords';
+  const rightRole = settings.swap ? 'chords' : 'melody';
+  if (hands.length >= 2) {
+    const s = [...hands].sort((a, b) => a.cx - b.cx);
+    out[leftRole] = s[0]; out[rightRole] = s[s.length - 1];
+    return out;
+  }
+  const h = hands[0];
+  let role = h.cx < 0.5 ? leftRole : rightRole;
+  let best = 0.15;
+  for (const r of ['melody', 'chords']) {
+    if (!roles[r].present) continue;
+    const d = Math.abs(roles[r].x - h.cx);
+    if (d < best) { best = d; role = r; }
+  }
+  out[role] = h;
+  return out;
+}
+
+function updateRole(name, h, now){
+  const st = roles[name];
+  if (!h) {
+    if (st.present && now - st.lastSeen > GRACE_MS) {
+      st.present = false; st.fx.reset(); st.fy.reset(); st.pinch = false; st.lane = -1; st.prevActive = false; st.lm = null;
+      if (st.sounding) { if (name === 'melody') melodyStop(); else chordStop(); st.sounding = false; }
+    }
+    return;
+  }
+  st.present = true; st.lastSeen = now;
+  st.x = st.fx.filter(h.cx, now);
+  st.y = st.fy.filter(h.cy, now);
+  st.ratio = h.ratio; st.fist = h.fist; st.lm = h.lm;
+  const k = settings.pinchSens;
+  st.pinch = updatePinch(st.pinch, h.ratio, 0.32 * k, 0.48 * k);
+  const n = name === 'melody' ? melodyLanes.length : chordList.length;
+  const top = settings.zone, bottom = 1 - settings.zone;
+  const pos = (st.y - top) / (bottom - top);
+  const c = name === 'melody' ? (1 - pos) * n : pos * n;
+  st.lane = laneWithHysteresis(c, st.lane, n, settings.hyst);
+  const active = settings.trigger === 'pinch' ? st.pinch : !st.fist;
+
+  if (name === 'melody') {
+    if (active && st.lane >= 0) {
+      const m = melodyLanes[st.lane];
+      if (!st.sounding || melody.midi !== m) melodyPlay(m);
+      st.sounding = true;
+    } else if (st.sounding) { melodyStop(); st.sounding = false; }
+    return;
+  }
+  if (st.lane < 0) { st.prevActive = active; return; }
+  if (settings.latch) {
+    if (active && !st.prevActive) {
+      if (chord.index === st.lane && chord.voices.length) chordStop(); else chordPlay(st.lane);
+    } else if (active && chord.voices.length && chord.index !== st.lane) {
+      chordPlay(st.lane);
+    }
+  } else {
+    if (active) { if (!st.sounding || chord.index !== st.lane) chordPlay(st.lane); st.sounding = true; }
+    else if (st.sounding) { chordStop(); st.sounding = false; }
+  }
+  st.prevActive = active;
+}
+
+function processResults(res, now){
+  const hands = [];
+  const vw = video.videoWidth || 16, vh = video.videoHeight || 9, ar = vw / vh;
+  for (const lm of (res && res.landmarks) || []) {
+    let sx = 0, sy = 0;
+    for (const i of [0, 5, 9, 13, 17]) { sx += lm[i].x; sy += lm[i].y; }
+    const d = (a, b) => Math.hypot((lm[a].x - lm[b].x) * ar, lm[a].y - lm[b].y);
+    const palm = d(0, 9) || 1e-3;
+    let curled = 0;
+    for (const [tip, pip] of [[8, 6], [12, 10], [16, 14], [20, 18]]) if (d(tip, 0) < d(pip, 0)) curled++;
+    hands.push({cx: 1 - sx / 5, cy: sy / 5, lm, ratio: d(4, 8) / palm, fist: curled >= 3});
+  }
+  handsCount = hands.length;
+  const a = assignHands(hands);
+  updateRole('melody', a.melody, now);
+  updateRole('chords', settings.oneHand ? null : a.chords, now);
+}
+
+/* ---------- Teclado ---------- */
+const MEL_KEYS = ['KeyA','KeyS','KeyD','KeyF','KeyG','KeyH','KeyJ','KeyK','KeyL','Semicolon','KeyQ','KeyW','KeyE','KeyR','KeyT','KeyY','KeyU','KeyI','KeyO','KeyP'];
+const kb = {mel:[], ch:[]};
+function isTyping(e){ const t = e.target; return t && (t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || (t.tagName === 'INPUT' && t.type !== 'checkbox' && t.type !== 'range')); }
+window.addEventListener('keydown', e => {
+  if (e.code === 'Escape') { panic(); return; }
+  if (isTyping(e) || e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+  const mi = MEL_KEYS.indexOf(e.code);
+  const ci = /^Digit[1-9]$/.test(e.code) ? +e.code.slice(5) - 1 : -1;
+  if (mi < 0 && ci < 0) return;
+  e.preventDefault();
+  engine.init();
+  if (mi >= 0 && mi < melodyLanes.length) { kb.mel.push(mi); melodyPlay(melodyLanes[mi]); }
+  if (ci >= 0 && ci < chordList.length) {
+    if (settings.latch && chord.index === ci && chord.voices.length) chordStop();
+    else { kb.ch.push(ci); chordPlay(ci); }
+  }
+});
+window.addEventListener('keyup', e => {
+  const mi = MEL_KEYS.indexOf(e.code);
+  if (mi >= 0 && kb.mel.includes(mi)) {
+    kb.mel = kb.mel.filter(x => x !== mi);
+    if (kb.mel.length) { const l = kb.mel[kb.mel.length - 1]; if (l < melodyLanes.length) melodyPlay(melodyLanes[l]); }
+    else if (!roles.melody.sounding) melodyStop();
+  }
+  const ci = /^Digit[1-9]$/.test(e.code) ? +e.code.slice(5) - 1 : -1;
+  if (ci >= 0 && kb.ch.includes(ci)) {
+    kb.ch = kb.ch.filter(x => x !== ci);
+    if (!settings.latch && chord.index === ci && !roles.chords.sounding) chordStop();
+  }
+});
+
+/* ---------- DOM ---------- */
+const $ = id => document.getElementById(id);
+const video = $('video'), canvas = $('overlay'), g2 = canvas.getContext('2d');
+const stage = $('stage'), stageWrap = $('stage-wrap');
+const css = getComputedStyle(document.documentElement);
+const COL = {
+  brass: css.getPropertyValue('--brass').trim() || '#e2aa50',
+  ice: css.getPropertyValue('--ice').trim() || '#8ab6dc',
+  ink: css.getPropertyValue('--ink').trim() || '#ece6d7',
+  alert: css.getPropertyValue('--alert').trim() || '#e8735e',
+};
+function hexA(hex, a){
+  const h = hex.replace('#', '');
+  const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+
+function setPill(id, text, state){ const el = $('pill-' + id); el.querySelector('b').textContent = text; el.dataset.state = state || ''; }
+function notice(text, bad){ const el = $('notice'); el.textContent = text || ''; el.classList.toggle('bad', !!bad); }
+
+let lastReadout = '';
+function renderReadout(){
+  const latin = isLatin();
+  const mel = melody.midi != null ? noteName(melody.midi, latin) : '—';
+  const melSub = melody.midi != null ? noteName(melody.midi, !latin) : (settings.swap ? 'mano izquierda' : 'mano derecha');
+  const ch = chord.index >= 0 && chordList[chord.index] ? chordList[chord.index].name : '—';
+  const chSub = settings.oneHand ? 'desactivado (una mano)' : (settings.swap ? 'mano derecha' : 'mano izquierda');
+  const key = mel + melSub + ch + chSub;
+  if (key === lastReadout) return;
+  lastReadout = key;
+  $('ro-note').textContent = mel; $('ro-note-sub').textContent = melSub;
+  $('ro-chord').textContent = ch; $('ro-chord-sub').textContent = chSub;
+}
+
+function renderPractice(){
+  const box = $('tokens'); box.textContent = '';
+  const seq = practice.seq, latin = isLatin();
+  if (!seq.length) { const p = document.createElement('span'); p.className = 'empty'; p.textContent = 'Cargá notas en el panel de Práctica para seguirlas acá.'; box.appendChild(p); $('prog').textContent = '—'; return; }
+  const start = Math.max(0, Math.min(practice.idx - 3, seq.length - 14));
+  const end = Math.min(seq.length, start + 14);
+  const now = performance.now();
+  for (let i = start; i < end; i++) {
+    const t = document.createElement('span');
+    t.className = 'tok';
+    if (i < practice.idx) t.classList.add('done');
+    if (i === practice.idx) { t.classList.add('now'); if (now - practice.missAt < 400) t.classList.add('miss'); }
+    if (!melodyLanes.includes(seq[i])) t.classList.add('out');
+    t.textContent = noteName(seq[i], latin);
+    box.appendChild(t);
+  }
+  const done = practice.idx >= seq.length;
+  $('prog').textContent = done ? `Completa · ${seq.length}/${seq.length}` : `${practice.idx}/${seq.length}`;
+  const outCount = seq.filter(m => !melodyLanes.includes(m)).length;
+  if (outCount) notice(`${outCount} nota(s) de la práctica no están en los carriles (tachadas). Activá “Usar como carriles solo las notas de esta secuencia” o ajustá la tonalidad.`, true);
+  else if ($('notice').classList.contains('bad') && $('notice').textContent.includes('práctica')) notice('');
+}
+
+/* ---------- Ajustes ---------- */
+function populateSelects(){
+  const root = $('root');
+  root.textContent = '';
+  for (let pc = 0; pc < 12; pc++) { const o = document.createElement('option'); o.value = pc; o.textContent = `${PC_EN[pc]} · ${PC_LAT[pc]}`; root.appendChild(o); }
+  const sc = $('scale');
+  sc.textContent = '';
+  for (const [k, v] of Object.entries(SCALES)) { const o = document.createElement('option'); o.value = k; o.textContent = v.name[0].toUpperCase() + v.name.slice(1); sc.appendChild(o); }
+}
+function controlValue(el){
+  if (el.type === 'checkbox') return el.checked;
+  if (el.type === 'range' || el.hasAttribute('data-num')) return parseFloat(el.value);
+  return el.value;
+}
+const FMT = {
+  reverb: v => Math.round(v * 100) + '%', volMel: v => Math.round(v * 100) + '%', volCh: v => Math.round(v * 100) + '%', master: v => Math.round(v * 100) + '%',
+  pinchSens: v => '×' + v.toFixed(2), smooth: v => Math.round(v * 100) + '%', hyst: v => Math.round(v * 100) + '%', zone: v => Math.round(v * 100) + '%',
+};
+function syncControls(){
+  if (settings.chordsAuto || !settings.chords.trim()) { settings.chords = diatonicChords(settings.root, settings.scale, isLatin()).join(' '); settings.chordsAuto = true; }
+  for (const el of document.querySelectorAll('[data-key]')) {
+    const v = settings[el.dataset.key];
+    if (el.type === 'checkbox') el.checked = !!v; else el.value = String(v);
+    const out = $(el.id + '-out'); if (out && FMT[el.dataset.key]) out.textContent = FMT[el.dataset.key](+v);
+  }
+}
+function rebuild(){
+  const seqP = parseSequence(settings.seq);
+  $('seq-err').textContent = seqP.bad.length ? `No reconozco: ${seqP.bad.slice(0, 6).join(', ')}${seqP.bad.length > 6 ? '…' : ''}` : '';
+  const seqChanged = practice.seq.join(',') !== seqP.notes.join(',');
+  practice.seq = seqP.notes;
+  if (seqChanged) practice.idx = 0;
+
+  if (settings.seqLanes && seqP.notes.length) melodyLanes = [...new Set(seqP.notes)].sort((a, b) => a - b);
+  else melodyLanes = scaleLanes(settings.root, settings.scale, settings.lowOct, settings.span);
+
+  const chP = parseChordList(settings.chords);
+  chordList = chP.chords;
+  const errs = [];
+  if (chP.bad.length) errs.push(`No reconozco: ${chP.bad.join(', ')}`);
+  if (chP.over) errs.push('Se usan los primeros 9');
+  $('chords-err').textContent = errs.join(' · ');
+
+  const sc = SCALES[settings.scale] || SCALES.minor;
+  $('ro-key').textContent = settings.seqLanes && seqP.notes.length ? 'Carriles de la secuencia' : `${pcName(settings.root, isLatin())} ${sc.name}`;
+  $('lane-count').textContent = `${melodyLanes.length} notas de ${noteName(melodyLanes[0] ?? 60, isLatin())} a ${noteName(melodyLanes[melodyLanes.length - 1] ?? 60, isLatin())} · ${chordList.length} acordes`;
+  for (const r of Object.values(roles)) r.lane = -1;
+  lastReadout = '';
+  renderReadout();
+  renderPractice();
+}
+const MUSIC_KEYS = new Set(['root','scale','lowOct','span','latin','chords','seq','seqLanes','pedal','oneHand','swap']);
+function onControl(e){
+  const el = e.target; const key = el.dataset.key; if (!key) return;
+  settings[key] = controlValue(el);
+  if (key === 'chords') settings.chordsAuto = false;
+  if ((key === 'root' || key === 'scale' || key === 'latin') && settings.chordsAuto) {
+    settings.chords = diatonicChords(settings.root, settings.scale, isLatin()).join(' ');
+    $('chords').value = settings.chords;
+  }
+  const out = $(el.id + '-out'); if (out && FMT[key]) out.textContent = FMT[key](settings[key]);
+  if (MUSIC_KEYS.has(key)) { panic(); rebuild(); }
+  if (key === 'preset') engine.setPreset(settings.preset);
+  if (['reverb','volMel','volCh','master'].includes(key)) engine.applyMix();
+  if (key === 'smooth') applyFilterParams();
+  if (key === 'showVideo') video.classList.toggle('off', !settings.showVideo);
+  save();
+}
+document.querySelectorAll('[data-key]').forEach(el => {
+  el.addEventListener(el.tagName === 'TEXTAREA' ? 'input' : (el.type === 'range' ? 'input' : 'change'), onControl);
+});
+$('btn-diatonic').addEventListener('click', () => {
+  settings.chordsAuto = true;
+  settings.chords = diatonicChords(settings.root, settings.scale, isLatin()).join(' ');
+  $('chords').value = settings.chords;
+  panic(); rebuild(); save();
+});
+$('btn-reset').addEventListener('click', () => { practice.idx = 0; renderPractice(); });
+$('panic').addEventListener('click', panic);
+
+/* ---------- Escenario ---------- */
+let dpr = 1;
+function resizeStage(){
+  const ar = (video.videoWidth && video.videoHeight) ? video.videoWidth / video.videoHeight : 16 / 9;
+  const W = stageWrap.clientWidth;
+  const Hmax = Math.max(260, window.innerHeight * 0.66);
+  const w = Math.min(W, Hmax * ar), h = w / ar;
+  stage.style.width = w + 'px'; stage.style.height = h + 'px';
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+}
+window.addEventListener('resize', resizeStage);
+video.addEventListener('loadedmetadata', resizeStage);
+
+const CONN = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+
+function drawLanes(x0, x1, top, bot, n, label, fromBottom, active, target, color, align, flashLane, flashAge){
+  if (!n) return;
+  const W = x1 - x0, h = (bot - top) / n, d = dpr;
+  const fs = Math.max(10 * d, Math.min(h * 0.42, 22 * d));
+  g2.font = `600 ${fs}px "JetBrains Mono", ui-monospace, monospace`;
+  g2.textBaseline = 'middle';
+  g2.textAlign = align;
+  for (let i = 0; i < n; i++) {
+    const y = fromBottom ? bot - (i + 1) * h : top + i * h;
+    if (i % 2 === 0) { g2.fillStyle = 'rgba(236,230,215,0.035)'; g2.fillRect(x0, y, W, h); }
+    if (i === flashLane && flashAge < 260) { g2.fillStyle = hexA(color, 0.4 * (1 - flashAge / 260)); g2.fillRect(x0, y, W, h); }
+    if (i === active) { g2.fillStyle = hexA(color, 0.26); g2.fillRect(x0, y, W, h); }
+    if (i === target) {
+      g2.save(); g2.setLineDash([6 * d, 5 * d]); g2.lineWidth = 2 * d; g2.strokeStyle = hexA(COL.brass, 0.9);
+      g2.strokeRect(x0 + d, y + d, W - 2 * d, h - 2 * d); g2.restore();
+    }
+    g2.fillStyle = 'rgba(236,230,215,0.08)'; g2.fillRect(x0, y, W, Math.max(1, d * 0.75));
+    g2.fillStyle = i === active ? color : (i === target ? COL.brass : 'rgba(236,230,215,0.72)');
+    const tx = align === 'right' ? x1 - 12 * d : x0 + 12 * d;
+    g2.fillText(label(i), tx, y + h / 2);
+  }
+  g2.fillStyle = 'rgba(236,230,215,0.08)'; g2.fillRect(x0, bot - d, W, Math.max(1, d * 0.75));
+}
+
+function drawHand(st, color){
+  if (!st.present || !st.lm) return;
+  const W = canvas.width, H = canvas.height, d = dpr, lm = st.lm;
+  g2.strokeStyle = hexA(color, 0.5); g2.lineWidth = 1.5 * d;
+  g2.beginPath();
+  for (const [a, b] of CONN) { g2.moveTo((1 - lm[a].x) * W, lm[a].y * H); g2.lineTo((1 - lm[b].x) * W, lm[b].y * H); }
+  g2.stroke();
+  g2.fillStyle = hexA(COL.ink, 0.85);
+  for (const p of lm) { g2.beginPath(); g2.arc((1 - p.x) * W, p.y * H, 2.2 * d, 0, Math.PI * 2); g2.fill(); }
+  const cx = st.x * W, cy = st.y * H;
+  g2.strokeStyle = hexA(color, 0.35); g2.lineWidth = d;
+  g2.beginPath(); g2.moveTo(cx - 60 * d, cy); g2.lineTo(cx + 60 * d, cy); g2.stroke();
+  const on = settings.trigger === 'pinch' ? st.pinch : !st.fist;
+  g2.beginPath(); g2.arc(cx, cy, 13 * d, 0, Math.PI * 2);
+  g2.lineWidth = 2.5 * d; g2.strokeStyle = color; g2.stroke();
+  if (on) { g2.fillStyle = hexA(color, 0.75); g2.fill(); }
+  // medidor de pinza: arco que se cierra al acercar pulgar e índice
+  if (settings.trigger === 'pinch') {
+    const k = settings.pinchSens, onT = 0.32 * k;
+    const closeness = Math.max(0, Math.min(1, (1.1 - st.ratio) / (1.1 - onT)));
+    g2.beginPath(); g2.arc(cx, cy, 19 * d, -Math.PI / 2, -Math.PI / 2 + closeness * Math.PI * 2);
+    g2.lineWidth = 2 * d; g2.strokeStyle = hexA(color, 0.6); g2.stroke();
+  }
+}
+
+function draw(){
+  const W = canvas.width, H = canvas.height;
+  if (!W || !H) return;
+  g2.clearRect(0, 0, W, H);
+  const top = settings.zone * H, bot = (1 - settings.zone) * H;
+  const one = settings.oneHand;
+  const melRange = one ? [0, W] : (settings.swap ? [0, W / 2] : [W / 2, W]);
+  const chRange = settings.swap ? [W / 2, W] : [0, W / 2];
+  const latin = isLatin();
+  const now = performance.now();
+  const activeMel = melody.midi != null ? melodyLanes.indexOf(melody.midi) : -1;
+  drawLanes(melRange[0], melRange[1], top, bot, melodyLanes.length, i => noteName(melodyLanes[i], latin), true,
+    activeMel, targetLane(), COL.brass, (!one && settings.swap) ? 'left' : 'right', flash.lane, now - flash.at);
+  if (!one) {
+    drawLanes(chRange[0], chRange[1], top, bot, chordList.length, i => `${i + 1}  ${chordList[i].name}`, false,
+      chord.index, -1, COL.ice, settings.swap ? 'right' : 'left', -1, 9999);
+    g2.fillStyle = 'rgba(236,230,215,0.18)'; g2.fillRect(W / 2 - dpr * 0.5, 0, Math.max(1, dpr), H);
+  }
+  drawHand(roles.chords, COL.ice);
+  drawHand(roles.melody, COL.brass);
+}
+
+/* ---------- Tracking ---------- */
+let landmarker = null, modelPromise = null, camOn = false, lastVideoTime = -1, detections = 0, fpsT = performance.now();
+function loadModel(){
+  if (modelPromise) return modelPromise;
+  setPill('model', 'cargando', 'wait');
+  modelPromise = (async () => {
+    const vision = await import(MP_URL);
+    const fileset = await vision.FilesetResolver.forVisionTasks(WASM_URL);
+    const opts = delegate => ({
+      baseOptions: {modelAssetPath: MODEL_URL, delegate},
+      runningMode: 'VIDEO', numHands: 2,
+      minHandDetectionConfidence: 0.6, minHandPresenceConfidence: 0.55, minTrackingConfidence: 0.5,
+    });
+    try { landmarker = await vision.HandLandmarker.createFromOptions(fileset, opts('GPU')); setPill('model', 'GPU', 'ok'); }
+    catch (e) { console.warn('GPU no disponible, uso CPU', e); landmarker = await vision.HandLandmarker.createFromOptions(fileset, opts('CPU')); setPill('model', 'CPU', 'ok'); }
+    return landmarker;
+  })().catch(err => { modelPromise = null; setPill('model', 'error', 'bad'); throw err; });
+  return modelPromise;
+}
+
+function cameraErrorText(e){
+  const n = e && e.name;
+  if (n === 'InsecureContext') return 'El navegador bloquea la cámara en esta dirección. Abrí el archivo con doble clic en Chrome o Edge, o servilo desde localhost o https.';
+  if (n === 'NotAllowedError' || n === 'SecurityError') return 'Permiso de cámara denegado. Habilitalo desde el ícono de cámara en la barra de direcciones y volvé a intentar.';
+  if (n === 'NotFoundError' || n === 'OverconstrainedError') return 'No se encontró ninguna cámara conectada.';
+  if (n === 'NotReadableError') return 'La cámara está en uso por otra aplicación (Zoom, Meet, Teams…). Cerrala y volvé a intentar.';
+  return 'No se pudo abrir la cámara: ' + (e && e.message ? e.message : 'error desconocido') + '.';
+}
+
+async function startCamera(){
+  engine.init();
+  const err = $('start-error'); err.hidden = true;
+  $('btn-cam').disabled = true;
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw Object.assign(new Error('insecure'), {name: 'InsecureContext'});
+    setPill('cam', 'pidiendo permiso', 'wait');
+    const stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: 'user', width: {ideal: 960}, height: {ideal: 540}}, audio: false});
+    video.srcObject = stream;
+    await video.play();
+    camOn = true;
+    setPill('cam', 'activa', 'ok');
+    $('start').hidden = true;
+    resizeStage();
+    requestWakeLock();
+    notice('Cargando el modelo de manos…');
+    try { await loadModel(); notice('Listo. Mostrá las manos: izquierda para acordes, derecha para melodía.'); }
+    catch (e) { console.error(e); notice('No se pudo cargar el modelo de manos (hace falta internet la primera vez). Podés seguir tocando con el teclado.', true); }
+  } catch (e) {
+    console.error(e);
+    setPill('cam', 'error', 'bad');
+    err.textContent = cameraErrorText(e); err.hidden = false;
+    $('btn-cam').disabled = false;
+  }
+}
+$('btn-cam').addEventListener('click', startCamera);
+$('btn-kb').addEventListener('click', () => {
+  engine.init();
+  $('start').hidden = true;
+  notice('Modo teclado: A a Ñ y Q a P para notas, 1 a 9 para acordes. Para usar las manos, recargá y activá la cámara.');
+});
+
+async function requestWakeLock(){ try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch (e) {} }
+document.addEventListener('visibilitychange', () => { if (document.hidden) panic(); else if (camOn) requestWakeLock(); });
+
+function loop(){
+  const now = performance.now();
+  if (camOn && landmarker && video.readyState >= 2 && video.currentTime !== lastVideoTime) {
+    lastVideoTime = video.currentTime;
+    let res = null;
+    try { res = landmarker.detectForVideo(video, now); } catch (e) { console.warn(e); }
+    processResults(res, now);
+    detections++;
+  } else if (camOn && landmarker) {
+    // sin cuadro nuevo: igual vencen los tiempos de gracia
+    updateRole('melody', null, now); updateRole('chords', null, now);
+  }
+  if (now - fpsT >= 1000) {
+    const fps = Math.round(detections * 1000 / (now - fpsT));
+    detections = 0; fpsT = now;
+    if (camOn && landmarker) setPill('fps', fps + ' fps', fps >= 20 ? 'ok' : (fps >= 12 ? 'wait' : 'bad'));
+    setPill('hands', String(handsCount), handsCount ? 'ok' : '');
+  }
+  draw();
+  requestAnimationFrame(loop);
+}
+
+/* ---------- Inicio ---------- */
+populateSelects();
+syncControls();
+applyFilterParams();
+video.classList.toggle('off', !settings.showVideo);
+rebuild();
+resizeStage();
+loadModel().catch(() => {}); // precarga el modelo mientras se lee la pantalla de inicio
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
