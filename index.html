@@ -194,7 +194,7 @@ input[type="range"]{width:100%; accent-color:var(--brass)}
       </div>
       <div class="how ch">
         <h3>Mano izquierda</h3>
-        <p class="duo-only">Modo dúo: la mano izquierda toca su nota fija (Mi) con la pinza, a cualquier altura. Alterná: pinza izquierda, pinza derecha.</p>
+        <p class="duo-only">Modo dúo: la mano izquierda toca su nota fija (la de retorno) con la pinza, a cualquier altura. Alterná: pinza izquierda, pinza derecha.</p>
         <p class="std-only">Modo clásico: la altura elige el acorde y la pinza lo activa. Con “Sostener acordes”, sigue sonando al soltar.</p>
       </div>
       <div class="how kb">
@@ -1217,10 +1217,16 @@ async function startCamera(){
   engine.init();
   const err = $('start-error'); err.hidden = true;
   $('btn-cam').disabled = true;
+  let slow = 0;
   try {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw Object.assign(new Error('insecure'), {name: 'InsecureContext'});
     setPill('cam', 'pidiendo permiso', 'wait');
+    slow = setTimeout(() => {
+      err.textContent = 'El navegador está esperando que permitas la cámara. Buscá el aviso abajo de la pantalla o tocá el ícono a la izquierda de la dirección → Permisos → Cámara → Permitir. Después recargá la página.';
+      err.hidden = false; $('btn-cam').disabled = false;
+    }, 6000);
     const stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: 'user', width: {ideal: 960}, height: {ideal: 540}}, audio: false});
+    clearTimeout(slow);
     video.srcObject = stream;
     await video.play();
     camOn = true;
@@ -1233,6 +1239,7 @@ async function startCamera(){
     catch (e) { console.error(e); notice('No se pudo cargar el modelo de manos (hace falta internet la primera vez). Podés seguir tocando con el teclado.', true); }
   } catch (e) {
     console.error(e);
+    clearTimeout(slow);
     setPill('cam', 'error', 'bad');
     err.textContent = cameraErrorText(e); err.hidden = false;
     $('btn-cam').disabled = false;
