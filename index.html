@@ -208,6 +208,15 @@ input[type="range"]{width:100%; accent-color:var(--brass)}
     <div class="group">
       <h2>Modo de juego</h2>
       <div class="field">
+        <label for="song">Canción</label>
+        <select id="song" data-key="song">
+          <option value="interstellar">Interstellar (Zimmer)</option>
+          <option value="experience">Experience (Einaudi)</option>
+          <option value="custom">Personalizada</option>
+        </select>
+        <p class="hint">Elegir una canción carga sus notas, acordes, instrumento y ajustes. Si cambiás algo a mano, pasa a “Personalizada”.</p>
+      </div>
+      <div class="field">
         <label for="mode">Modo</label>
         <select id="mode" data-key="mode">
           <option value="duo">Dúo: nota fija a la izquierda, acordes automáticos</option>
@@ -553,9 +562,26 @@ const DEFAULTS = {
   chords:'F G Am G', chordsAuto:false, latch:true, pedal:true,
   trigger:'pinch', oneHand:false, swap:false, pinchSens:1, smooth:0.5, hyst:0.15, zone:0.1, showVideo:true,
   seq:'A4 E5 A4 E5  B4 E5 B4 E5  C5 E5 C5 E5  D5 E5 D5 E5  B4 A4', seqLanes:true,
-  mode:'duo', leftNotes:'E5', rightNotes:'A4 B4 C5 D5', chordMap:'La=F Si=G Do=Am Re=G',
+  song:'interstellar', mode:'duo', leftNotes:'E5', rightNotes:'A4 B4 C5 D5', chordMap:'La=F Si=G Do=Am Re=G',
 };
 const isDuo = () => settings.mode === 'duo';
+const SONGS = {
+  interstellar: {
+    mode:'duo', preset:'catedral', reverb:0.75, pedal:true, latch:true, hyst:0.15, seqLanes:true,
+    leftNotes:'E5', rightNotes:'A4 B4 C5 D5', chordMap:'La=F Si=G Do=Am Re=G',
+    seq:'A4 E5 A4 E5  B4 E5 B4 E5  C5 E5 C5 E5  D5 E5 D5 E5  B4 A4',
+  },
+  experience: {
+    mode:'standard', preset:'piano', reverb:0.5, pedal:true, latch:true, hyst:0.3, seqLanes:true,
+    root:6, scale:'minor', chords:'F#m A C#m D', chordsAuto:false,
+    seq:'E4 F#4 G#4 A4 B4 C#5  A4 G#4 F#4 E4 C#5',
+  },
+};
+const SONG_KEYS = new Set(Object.values(SONGS).flatMap(Object.keys).concat(['leftNotes','rightNotes','chordMap','seq','chords','root','scale','mode','preset']));
+function applySong(name){
+  const s = SONGS[name]; if (!s) return;
+  Object.assign(settings, s, {song:name});
+}
 let settings = {...DEFAULTS};
 try { const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); if (saved && typeof saved === 'object') settings = {...DEFAULTS, ...saved}; } catch (e) {}
 function save(){ try { localStorage.setItem(STORE_KEY, JSON.stringify(settings)); } catch (e) {} }
@@ -1030,6 +1056,12 @@ function onControl(e){
   const el = e.target; const key = el.dataset.key; if (!key) return;
   settings[key] = controlValue(el);
   if (key === 'chords') settings.chordsAuto = false;
+  if (key === 'song') {
+    if (settings.song !== 'custom') {
+      applySong(settings.song); panic(); syncControls(); applyFilterParams(); engine.setPreset(settings.preset); engine.applyMix();
+      practice.idx = 0; rebuild(); save(); return;
+    }
+  } else if (SONG_KEYS.has(key) && settings.song !== 'custom') { settings.song = 'custom'; $('song').value = 'custom'; }
   if ((key === 'root' || key === 'scale' || key === 'latin') && settings.chordsAuto) {
     settings.chords = diatonicChords(settings.root, settings.scale, isLatin()).join(' ');
     $('chords').value = settings.chords;
