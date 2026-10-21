@@ -572,9 +572,9 @@ const SONGS = {
     seq:'A4 E5 A4 E5  B4 E5 B4 E5  C5 E5 C5 E5  D5 E5 D5 E5  B4 A4',
   },
   experience: {
-    mode:'standard', preset:'piano', reverb:0.5, pedal:true, latch:true, hyst:0.3, seqLanes:true,
-    root:6, scale:'minor', chords:'F#m A C#m D', chordsAuto:false,
-    seq:'E4 F#4 G#4 A4 B4 C#5  A4 G#4 F#4 E4 C#5',
+    mode:'duo', preset:'piano', reverb:0.5, pedal:true, latch:true, hyst:0.2, seqLanes:true,
+    leftNotes:'C#5', rightNotes:'E5 F#5 G#5 A5', chordMap:'La=F#m Sol#=A Fa#=C#m Mi=D',
+    seq:'A5 C#5 G#5 C#5 F#5 C#5 E5 C#5',
   },
 };
 const SONG_KEYS = new Set(Object.values(SONGS).flatMap(Object.keys).concat(['leftNotes','rightNotes','chordMap','seq','chords','root','scale','mode','preset']));
