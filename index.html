@@ -562,19 +562,19 @@ const DEFAULTS = {
   chords:'F G Am G', chordsAuto:false, latch:true, pedal:true,
   trigger:'pinch', oneHand:false, swap:false, pinchSens:1, smooth:0.5, hyst:0.15, zone:0.1, showVideo:true,
   seq:'A4 E5 A4 E5  B4 E5 B4 E5  C5 E5 C5 E5  D5 E5 D5 E5  B4 A4', seqLanes:true,
-  song:'interstellar', mode:'duo', leftNotes:'E5', rightNotes:'A4 B4 C5 D5', chordMap:'La=F Si=G Do=Am Re=G',
+  chordOct:0, song:'interstellar', mode:'duo', leftNotes:'E5', rightNotes:'A4 B4 C5 D5', chordMap:'La=F Si=G Do=Am Re=G',
 };
 const isDuo = () => settings.mode === 'duo';
 const SONGS = {
   interstellar: {
-    mode:'duo', preset:'catedral', reverb:0.75, pedal:true, latch:true, hyst:0.15, seqLanes:true,
+    mode:'duo', preset:'catedral', reverb:0.75, chordOct:0, pedal:true, latch:true, hyst:0.15, seqLanes:true,
     leftNotes:'E5', rightNotes:'A4 B4 C5 D5', chordMap:'La=F Si=G Do=Am Re=G',
     seq:'A4 E5 A4 E5  B4 E5 B4 E5  C5 E5 C5 E5  D5 E5 D5 E5  B4 A4',
   },
   experience: {
-    mode:'duo', preset:'piano', reverb:0.5, pedal:true, latch:true, hyst:0.2, seqLanes:true,
-    leftNotes:'C#5', rightNotes:'E5 F#5 G#5 A5', chordMap:'La=F#m Sol#=A Fa#=C#m Mi=D',
-    seq:'A5 C#5 G#5 C#5 F#5 C#5 E5 C#5',
+    mode:'standard', preset:'piano', reverb:0.5, pedal:true, latch:true, hyst:0.3, seqLanes:true,
+    chords:'F#m A C#m D', chordsAuto:false, chordOct:-1, oneHand:false, swap:false,
+    seq:'C#5 C#5 C#5 D5  C#5 C#5 C#5 D5  C#5 C#5 C#5 D5  C#5 B4 C#5 D5',
   },
 };
 const SONG_KEYS = new Set(Object.values(SONGS).flatMap(Object.keys).concat(['leftNotes','rightNotes','chordMap','seq','chords','root','scale','mode','preset']));
@@ -743,7 +743,7 @@ function chordPlay(i){
   const ch = chordList[i];
   if (!ch || !engine.ctx) return;
   const old = chord.voices;
-  const notes = chordMidis(ch, settings.pedal);
+  const notes = chordMidis(ch, settings.pedal).map(m => m + 12 * (settings.chordOct || 0));
   chord.voices = notes.map((m, k) => engine.noteOn(m, engine.chordBus, k >= ch.ints.length ? 0.85 : 0.7));
   for (const v of old) engine.noteOff(v);
   chord.index = i;
