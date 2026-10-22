@@ -210,11 +210,18 @@ input[type="range"]{width:100%; accent-color:var(--brass)}
       <div class="field">
         <label for="song">Canción</label>
         <select id="song" data-key="song">
-          <option value="interstellar">Interstellar (Zimmer)</option>
-          <option value="experience">Experience (Einaudi)</option>
           <option value="custom">Personalizada</option>
         </select>
         <p class="hint">Elegir una canción carga sus notas, acordes, instrumento y ajustes. Si cambiás algo a mano, pasa a “Personalizada”.</p>
+      </div>
+      <div class="field">
+        <label for="songName">Guardar la configuración actual como canción</label>
+        <div class="btnrow">
+          <input id="songName" type="text" placeholder="Nombre, por ejemplo Nuvole Bianche" style="flex:1;min-width:0;background:var(--raise);border:1px solid var(--line-strong);border-radius:7px;padding:7px 9px">
+          <button class="btn btn-small" id="btn-save-song" type="button">Guardar</button>
+        </div>
+        <div class="btnrow"><button class="btn btn-small" id="btn-del-song" type="button" hidden>Borrar esta canción</button></div>
+        <p class="hint" id="song-msg">Las canciones que guardes quedan en este dispositivo.</p>
       </div>
       <div class="field">
         <label for="mode">Modo</label>
@@ -581,8 +588,11 @@ const SONGS = {
   },
 };
 const SONG_KEYS = new Set(Object.values(SONGS).flatMap(Object.keys).concat(['leftNotes','rightNotes','chordMap','seq','chords','root','scale','mode','preset']));
+const USONG_KEY = 'organo-gestual-songs';
+let userSongs = {};
+try { userSongs = JSON.parse(localStorage.getItem(USONG_KEY) || '{}') || {}; } catch (e) {}
 function applySong(name){
-  const s = SONGS[name]; if (!s) return;
+  const s = name.startsWith('u:') ? userSongs[name.slice(2)] : SONGS[name]; if (!s) return;
   Object.assign(settings, s, {song:name});
 }
 let settings = {...DEFAULTS};
@@ -1000,7 +1010,18 @@ function renderPractice(){
 }
 
 /* ---------- Ajustes ---------- */
+function populateSongs(){
+  const sel = $('song'); sel.textContent = '';
+  const add = (v, t) => { const o = document.createElement('option'); o.value = v; o.textContent = t; sel.appendChild(o); };
+  add('interstellar', 'Interstellar (Zimmer)'); add('experience', 'Experience (Einaudi)');
+  for (const n of Object.keys(userSongs).sort()) add('u:' + n, n);
+  add('custom', 'Personalizada');
+  if (![...sel.options].some(o => o.value === settings.song)) settings.song = 'custom';
+  sel.value = settings.song;
+  $('btn-del-song').hidden = !String(settings.song).startsWith('u:');
+}
 function populateSelects(){
+  populateSongs();
   const root = $('root');
   root.textContent = '';
   for (let pc = 0; pc < 12; pc++) { const o = document.createElement('option'); o.value = pc; o.textContent = `${PC_EN[pc]} · ${PC_LAT[pc]}`; root.appendChild(o); }
@@ -1071,7 +1092,7 @@ function onControl(e){
   if (key === 'song') {
     if (settings.song !== 'custom') {
       applySong(settings.song); panic(); syncControls(); applyFilterParams(); engine.setPreset(settings.preset); engine.applyMix();
-      practice.idx = 0; rebuild(); save(); return;
+      practice.idx = 0; rebuild(); save(); $('btn-del-song').hidden = !settings.song.startsWith('u:'); return;
     }
   } else if (SONG_KEYS.has(key) && settings.song !== 'custom') { settings.song = 'custom'; $('song').value = 'custom'; }
   if ((key === 'root' || key === 'scale' || key === 'latin') && settings.chordsAuto) {
@@ -1094,6 +1115,23 @@ $('btn-diatonic').addEventListener('click', () => {
   settings.chords = diatonicChords(settings.root, settings.scale, isLatin()).join(' ');
   $('chords').value = settings.chords;
   panic(); rebuild(); save();
+});
+$('btn-save-song').addEventListener('click', () => {
+  const name = $('songName').value.trim().slice(0, 40);
+  if (!name) { $('song-msg').textContent = 'Escribí un nombre para la canción.'; return; }
+  const snap = {...settings}; delete snap.song;
+  userSongs[name] = snap;
+  try { localStorage.setItem(USONG_KEY, JSON.stringify(userSongs)); } catch (e) {}
+  settings.song = 'u:' + name; populateSongs(); save();
+  $('songName').value = ''; $('song-msg').textContent = `Guardada: ${name}.`;
+});
+$('btn-del-song').addEventListener('click', () => {
+  if (!String(settings.song).startsWith('u:')) return;
+  const name = settings.song.slice(2);
+  delete userSongs[name];
+  try { localStorage.setItem(USONG_KEY, JSON.stringify(userSongs)); } catch (e) {}
+  settings.song = 'custom'; populateSongs(); save();
+  $('song-msg').textContent = `Borrada: ${name}.`;
 });
 $('btn-reset').addEventListener('click', () => { practice.idx = 0; renderPractice(); });
 $('panic').addEventListener('click', panic);
